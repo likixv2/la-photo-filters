@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matrix multiplication, inversion and photo filters</title>
+<meta name="description" content="Linear Algebra mini project: a photo is a matrix, a filter is a matrix, and undoing a filter means inverting it.">
+<style>
+:root{--ink:#1c2230;--paper:#eef1f4;--card:#fff;--line:#c9d0d9;--accent:#b85a1f;--muted:#5a6475}
+@media (prefers-color-scheme:dark){:root{--ink:#e6e9ee;--paper:#161a22;--card:#1e232d;--line:#363d4a;--accent:#e0873f;--muted:#9aa3b2}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 Georgia,"Iowan Old Style",serif}
+main{max-width:980px;margin:0 auto;padding:40px 20px 72px}
+h1{font-size:clamp(28px,5vw,46px);line-height:1.12;margin:0 0 14px;max-width:18em}
+h2{font-size:24px;margin:52px 0 10px}
+p{max-width:40em;margin:0 0 14px}
+.lead{font-size:20px;color:var(--muted)}
+.eq{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;background:var(--card);border-left:4px solid var(--accent);padding:12px 16px;margin:22px 0;overflow-x:auto;white-space:nowrap}
+figure{margin:20px 0;background:var(--card);border:1px solid var(--line);padding:10px}
+figure img{width:100%;height:auto;display:block}
+figcaption{font:14px/1.5 system-ui,sans-serif;color:var(--muted);padding:8px 4px 2px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font:15px/1.45 system-ui,sans-serif;background:var(--card)}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{border-bottom:2px solid var(--ink)}
+td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bad{color:var(--accent);font-weight:600}
+ol.steps{padding-left:1.2em;max-width:42em}
+ol.steps li{margin-bottom:8px}
+a{color:var(--accent)}
+a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+footer{margin-top:56px;font:14px system-ui,sans-serif;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>A photo is a matrix. A filter is a matrix. Undoing it means inverting it.</h1>
+<p class="lead">Linear Algebra mini project: matrix multiplication, inversion and photo filters, built with numpy and a hand-written RREF, LU and Gram-Schmidt.</p>
+<div class="eq">Y = L &middot; X &middot; R<sup>T</sup> &nbsp;&nbsp;&rarr;&nbsp;&nbsp; X = L<sup>-1</sup> &middot; Y &middot; R<sup>-T</sup></div>
+
+<figure>
+<img src="fig2_inversion.png" alt="Original photo, blurred, exact inverse, noisy blur, naive inverse that explodes, least-squares result, sharpened and un-sharpened">
+<figcaption>The exact inverse recovers the blurred photo almost perfectly. Add tiny noise and the same inverse turns to static. Least squares gives a usable photo.</figcaption>
+</figure>
+
+<h2>Results</h2>
+<div class="scroll"><table>
+<tr><th>Experiment</th><th>Outcome</th></tr>
+<tr><td>Blurred photo vs original</td><td class="n">29.9 dB</td></tr>
+<tr><td>Exact inverse (LU solve), no noise</td><td class="n">109.9 dB, essentially perfect</td></tr>
+<tr><td>Exact inverse after noise (&sigma; = 0.002)</td><td class="n bad">5.0 dB, noise explodes</td></tr>
+<tr><td>Least-squares deblur (&lambda; = 0.01)</td><td class="n">32.4 dB</td></tr>
+<tr><td>Sharpen then S<sup>-1</sup>, warm tone then W<sup>-1</sup></td><td class="n">recovered to about 1e-15</td></tr>
+<tr><td>Grayscale matrix</td><td class="n bad">rank 1, cannot be inverted</td></tr>
+<tr><td>Projection compression, k = 5 / 10 / 20</td><td class="n">12.8x / 6.4x / 3.2x smaller; 26.0 / 30.4 / 35.8 dB</td></tr>
+<tr><td>Noise reduction by projection (&sigma; = 0.10)</td><td class="n">20.3 dB to 25.8 dB with 8 eigen-directions</td></tr>
+</table></div>
+
+<h2>Filters are matrix multiplication</h2>
+<p>Blur, sharpen, flip, edge detection, brightness, warm tone, sepia and grayscale are each a matrix applied to the photo's pixel matrix.</p>
+<figure>
+<img src="fig1_filters.png" alt="Ten photo filters applied to a landscape: original, blur, sharpen, flip, rotate, brightness, warm tone, sepia, grayscale and edges">
+<figcaption>Every panel is a matrix product of the same 128&times;128 photo.</figcaption>
+</figure>
+
+<h2>Why blur is hard to undo</h2>
+<p>The blur matrix is symmetric, so B = P D P<sup>T</sup>. Its smallest eigenvalue is 1.5e-4, so zig-zag patterns are almost erased. Inverting multiplies those components back up by a huge factor, and noise rides along. Projection onto the few strongest eigen-directions keeps the photo and drops most of the noise.</p>
+<figure>
+<img src="fig3_eigen_projection.png" alt="Eigenvalue plots, low-rank compression at three levels and a denoised photo">
+<figcaption>Eigenvalues, compression and noise reduction.</figcaption>
+</figure>
+
+<h2>The workflow</h2>
+<ol class="steps">
+<li>Photo becomes a matrix; filters become matrices.</li>
+<li>RREF and LU simplify matrices and show which are invertible.</li>
+<li>Rank and nullity explain which filters lose information.</li>
+<li>Pivot columns give a basis; Gram-Schmidt makes it orthonormal.</li>
+<li>Inversion undoes sharpen, warm tone, flip and blur.</li>
+<li>Least squares stabilises deblurring when there is noise.</li>
+<li>Projection compresses and denoises.</li>
+<li>Eigenvalues and diagonalization explain why it all behaves this way.</li>
+</ol>
+
+<h2>Run it yourself</h2>
+<p><a href="photo_filters_la.py">photo_filters_la.py</a> &middot; <a href="run_output.txt">console output</a> &middot; <a href="README_and_viva_notes.md">README and viva notes</a></p>
+<p>Install numpy, matplotlib and Pillow, then run <code>python photo_filters_la.py my_photo.jpg</code>.</p>
+
+<footer>Linear Algebra mini project, PES University CSE.</footer>
+</main>
+</body>
+</html>
